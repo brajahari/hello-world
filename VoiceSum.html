@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech to Text</title>
+</head>
+<body>
+    <button id="startButton">Start</button>
+    <button id="clearButton">Clear</button>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Values</th>
+                <th>Cumulative Sum</th>
+            </tr>
+        </thead>
+        <tbody id="outputTable"></tbody>
+    </table>
+    <h3>Debug Transcript</h3>
+    <div id="debugOutput" style="white-space: pre-line; max-height: 150px; overflow-y: auto;"></div>
+
+    <script>
+        let recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+
+        let cumulativeSum = 0;
+        let manuallyStopped = false;
+        let lastNumber = null; // Store last number before "plus"
+
+        recognition.onresult = function(event) {
+            let transcript = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+
+            // Append Debug Output with a new line
+            let debugDiv = document.getElementById("debugOutput");
+            debugDiv.textContent += (debugDiv.textContent ? "\n" : "") + transcript;
+
+            if (transcript.includes("clear")) {
+                clearOutput();
+                return;
+            }
+
+            // Convert words to numbers (including decimals)
+            let processedText = transcript.replace(/\bone\b/g, "1").replace(/\btwo\b/g, "2").replace(/\bthree\b/g, "3")
+                                          .replace(/\bfour\b/g, "4").replace(/\bfive\b/g, "5").replace(/\bsix\b/g, "6")
+                                          .replace(/\bseven\b/g, "7").replace(/\beight\b/g, "8").replace(/\bnine\b/g, "9")
+                                          .replace(/\bzero\b/g, "0")
+                                          .replace(/\bminus\b/g, "-") // Handle negative numbers
+                                          .replace(/\bpoint\b/g, ".") // Handle decimals
+                                          .replace(/\bplus\b/g, "+");  // Mark plus for later processing
+
+            let numbers = processedText.match(/-?\d+(\.\d+)?/g); // Match integers & decimals
+            if (!numbers) return;
+
+            let words = transcript.split(" ");
+            let lastWord = words[words.length - 1];
+
+            if (lastWord === "plus") {
+                lastNumber = parseFloat(numbers[numbers.length - 1]); // Store last number for next input
+                return;
+            }
+
+            numbers.forEach(num => {
+                if (lastNumber !== null) {
+                    addNumber(lastNumber + parseFloat(num)); // Handle "X plus Y"
+                    lastNumber = null;
+                } else {
+                    addNumber(parseFloat(num));
+                }
+            });
+        };
+
+        function addNumber(num) {
+            if (isNaN(num)) return;
+
+            let table = document.getElementById("outputTable");
+            cumulativeSum += num;
+            let row = table.insertRow();
+            let cell1 = row.insertCell(0);
+            let cell2 = row.insertCell(1);
+            cell1.contentEditable = "true";
+            cell1.textContent = num;
+            cell2.textContent = cumulativeSum.toFixed(2); // Ensure decimal consistency
+            cell1.addEventListener("input", updateCumulativeSum);
+        }
+
+        function updateCumulativeSum() {
+            let table = document.getElementById("outputTable");
+            let rows = table.rows;
+            cumulativeSum = 0;
+            for (let i = 0; i < rows.length; i++) {
+                let num = parseFloat(rows[i].cells[0].textContent) || 0;
+                cumulativeSum += num;
+                rows[i].cells[1].textContent = cumulativeSum.toFixed(2); // Maintain decimal format
+            }
+        }
+
+        function clearOutput() {
+            document.getElementById("outputTable").innerHTML = "";
+            document.getElementById("debugOutput").textContent = "";
+            cumulativeSum = 0;
+            lastNumber = null;
+        }
+
+        // Auto-restart on end or error, but only if not manually stopped
+        recognition.onend = () => {
+            if (!manuallyStopped) {
+                setTimeout(() => recognition.start(), 500);
+            }
+        };
+        recognition.onerror = (event) => console.warn("Speech recognition error:", event);
+
+        document.getElementById("startButton").addEventListener("click", () => {
+            manuallyStopped = false;
+            recognition.start();
+        });
+
+        document.getElementById("clearButton").addEventListener("click", clearOutput);
+
+        // Start automatically
+        recognition.start();
+    </script>
+	
+	<!-- Add this before the closing </body> tag -->
+<hr>
+<h3>How to Use This Speech-to-Text Calculator</h3>
+<ul>
+    <li>Speak "number" followed by "plus" followed by "number"...</li>
+	<li>Example "1 plus 15 plus 20.5 plus 16".</li>
+    <li>Say/Click <strong>"clear"</strong> at any time to reset the table.</li>
+    <li>The <strong>Values</strong> column is editable. You can manually change any value.</li>
+</ul>
+<p>Created by Bala</p>
+
+	
+	
+	
+	
+	
+</body>
+</html>
